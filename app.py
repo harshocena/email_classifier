@@ -2,16 +2,40 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
 import re
+import nltk
 from nltk.corpus import stopwords
+
+# Download required NLTK resources if missing
+def download_nltk():
+    packages = [
+        "stopwords",
+        "punkt",
+        "wordnet",
+        "omw-1.4"
+    ]
+
+    for pkg in packages:
+        try:
+            # Check if it's a corpus
+            nltk.data.find(f"corpora/{pkg}")
+        except LookupError:
+            try:
+                # Check if it's a tokenizer
+                nltk.data.find(f"tokenizers/{pkg}")
+            except LookupError:
+                nltk.download(pkg)
+
+download_nltk()
 
 app = FastAPI(title="Email Lead Detection API")
 
+# Load trained model
 model = joblib.load("email_classifier.pkl")
 
+# Load stopwords after ensuring they're downloaded
 stop_words = set(stopwords.words("english"))
 
 def process_text(text):
-
     if not isinstance(text, str):
         return ""
 
