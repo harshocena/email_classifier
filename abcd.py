@@ -14,10 +14,14 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
+# Download stopwords
 nltk.download("stopwords")
 
 stop_words = set(stopwords.words("english"))
 
+# -------------------------------
+# Text preprocessing
+# -------------------------------
 def process_text(text):
     if not isinstance(text, str):
         return ""
@@ -39,14 +43,61 @@ def process_text(text):
 
     return " ".join(tokens)
 
-df = pd.read_excel("email_training_dataset.xlsx")
+
+# -------------------------------
+# Load dataset
+# -------------------------------
+df = pd.read_excel("tricky_email_dataset.xlsx")
 
 df.columns = df.columns.str.strip().str.lower()
 
-df["body"] = df["body"].fillna("").astype(str)
+print("\nColumns found:")
+print(df.columns.tolist())
+
+# -------------------------------
+# Detect email text column
+# -------------------------------
+possible_columns = [
+    "body",
+    "message",
+    "content",
+    "text",
+    "email_body",
+    "mail",
+    "description"
+]
+
+text_column = None
+
+for col in possible_columns:
+    if col in df.columns:
+        text_column = col
+        break
+
+if text_column is None:
+    raise ValueError(
+        f"No email text column found.\n"
+        f"Available columns are: {df.columns.tolist()}"
+    )
+
+print(f"\nUsing '{text_column}' as email text column.")
+
+# -------------------------------
+# Check label column
+# -------------------------------
+if "label" not in df.columns:
+    raise ValueError(
+        f"'label' column not found.\n"
+        f"Available columns: {df.columns.tolist()}"
+    )
+
+# -------------------------------
+# Clean data
+# -------------------------------
+df[text_column] = df[text_column].fillna("").astype(str)
 
 df["body_clean"] = (
-    df["body"]
+    df[text_column]
     .str.lower()
     .str.replace(r"\s+", " ", regex=True)
     .str.strip()
@@ -54,13 +105,14 @@ df["body_clean"] = (
 
 df = df.drop_duplicates(subset=["body_clean"])
 
-df["text"] = df["body"]
-
-df["clean_text"] = df["text"].apply(process_text)
+df["clean_text"] = df[text_column].apply(process_text)
 
 X = df["clean_text"]
 y = df["label"]
 
+# -------------------------------
+# Split
+# -------------------------------
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -69,6 +121,9 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
+# -------------------------------
+# Model
+# -------------------------------
 model = Pipeline([
     (
         "tfidf",
@@ -88,19 +143,28 @@ model = Pipeline([
     )
 ])
 
+# -------------------------------
+# Train
+# -------------------------------
 model.fit(X_train, y_train)
 
+# -------------------------------
+# Evaluate
+# -------------------------------
 y_pred = model.predict(X_test)
 
-print("\nAccuracy")
+print("\nAccuracy:")
 print(accuracy_score(y_test, y_pred))
 
-print("\nClassification Report")
+print("\nClassification Report:")
 print(classification_report(y_test, y_pred))
 
-print("\nConfusion Matrix")
+print("\nConfusion Matrix:")
 print(confusion_matrix(y_test, y_pred))
 
+# -------------------------------
+# Cross Validation
+# -------------------------------
 scores = cross_val_score(
     model,
     X,
@@ -109,12 +173,15 @@ scores = cross_val_score(
     scoring="accuracy"
 )
 
-print("\nCross Validation Scores")
+print("\nCross Validation Scores:")
 print(scores)
 
-print("\nMean CV Accuracy")
+print("\nMean CV Accuracy:")
 print(scores.mean())
 
+# -------------------------------
+# Save model
+# -------------------------------
 joblib.dump(model, "email_classifier.pkl")
 
-print("\nSaved: email_classifier.pkl")
+print("\nModel saved as email_classifier.pkl")
